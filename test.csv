@@ -1,0 +1,16 @@
+metodo,coeficiente,p_value,coluna_x,coluna_y
+Mann Whitney,6.0,5.200448386484717e-12,code_smells,lines_edited
+Pearson,0.05381496971444348,0.7661314031996822,code_smells,lines_edited
+Spearman,0.3258652809188037,0.06421954576273893,code_smells,lines_edited
+Mann Whitney,13.0,9.745109178797609e-12,code_smells,commits
+Pearson,0.0021381491363926626,0.9905779037156113,code_smells,commits
+Spearman,0.2996154866118503,0.09027275786475124,code_smells,commits
+Mann Whitney,21.0,1.9773528286619078e-11,code_smells,experience_in_days
+Pearson,0.05878841061657457,0.7452013225716313,code_smells,experience_in_days
+Spearman,0.052503975827269574,0.7716763596327023,code_smells,experience_in_days
+Mann Whitney,21.0,1.9773528286619078e-11,code_smells,experience_in_hours
+Pearson,0.05872909209882897,0.7454499390511841,code_smells,experience_in_hours
+Spearman,0.052503975827269574,0.7716763596327023,code_smells,experience_in_hours
+Mann Whitney,544.5,1.0,code_smells,code_smells
+Pearson,1.0,0.0,code_smells,code_smells
+Spearman,1.0,0.0,code_smells,code_smells

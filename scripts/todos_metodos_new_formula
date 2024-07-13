@@ -1,0 +1,37 @@
+metodo,coeficiente,p_value,coluna_x,coluna_y
+Mann Whitney,28745.0,0.07472873222472569,code_smells,lines_edited
+Pearson,0.8379947228805279,1.213501704072568e-61,code_smells,lines_edited
+Spearman,0.8198318921353815,6.946990303153678e-57,code_smells,lines_edited
+Mann Whitney,29297.0,0.09871782817552294,code_smells,commits
+Pearson,0.6972197861519678,4.2152053323996607e-35,code_smells,commits
+Spearman,0.6656324598397034,4.596477998601289e-31,code_smells,commits
+Mann Whitney,12833.0,2.441047672602893e-18,code_smells,experience_in_days
+Pearson,0.5800143300849195,2.3524687875097898e-21,code_smells,experience_in_days
+Spearman,0.37550497967090374,7.64620688566119e-09,code_smells,experience_in_days
+Mann Whitney,13529.0,1.3155215174086186e-17,code_smells,experience_in_hours
+Pearson,0.5819825434272611,8.567727557994217e-22,code_smells,experience_in_hours
+Spearman,0.38920487243784335,1.4883501376101707e-09,code_smells,experience_in_hours
+Mann Whitney,26912.0,1.0,code_smells,code_smells
+Pearson,1.0,0.0,code_smells,code_smells
+Spearman,1.0,0.0,code_smells,code_smells
+Mann Whitney,26876.0,0.9803889414057625,code_smells,sonar_smells
+Pearson,0.9265677548197759,1.2039121361097388e-99,code_smells,sonar_smells
+Spearman,0.900346611502802,4.5511444253964673e-85,code_smells,sonar_smells
+Mann Whitney,48047.0,0.19810719421211587,sonar_smells,lines_edited
+Pearson,0.8554492580229603,1.9372971823966474e-87,sonar_smells,lines_edited
+Spearman,0.8631877082467607,9.576619766965907e-91,sonar_smells,lines_edited
+Mann Whitney,46919.0,0.742855234775683,sonar_smells,commits
+Pearson,0.7443885524535957,6.628083347192726e-55,sonar_smells,commits
+Spearman,0.762452894864204,4.78958128035135e-59,sonar_smells,commits
+Mann Whitney,18801.0,1.9181928631622758e-29,sonar_smells,experience_in_days
+Pearson,0.6679896035101328,1.8800715233156854e-38,sonar_smells,experience_in_days
+Spearman,0.4592383141687525,2.228120341733019e-16,sonar_smells,experience_in_days
+Mann Whitney,20597.0,1.2152714598317631e-27,sonar_smells,experience_in_hours
+Pearson,0.6693493357246554,1.954472552926527e-39,sonar_smells,experience_in_hours
+Spearman,0.46704077056678317,2.795231803134362e-17,sonar_smells,experience_in_hours
+Mann Whitney,26948.0,0.9803889414057625,sonar_smells,code_smells
+Pearson,0.9265677548197759,1.2039121361097388e-99,sonar_smells,code_smells
+Spearman,0.900346611502802,4.5511444253964673e-85,sonar_smells,code_smells
+Mann Whitney,46208.0,1.0,sonar_smells,sonar_smells
+Pearson,1.0,0.0,sonar_smells,sonar_smells
+Spearman,0.9999999999999999,0.0,sonar_smells,sonar_smells
