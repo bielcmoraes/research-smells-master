@@ -2,29 +2,31 @@ import os
 from datetime import datetime
 import sqlite3
 import platform
+import pandas as pd
+import numpy as np
 
 class Research:
 
-    def __init__(self, database, fast: bool = True):
+    def __init__(self, fast: bool = True):
         # Path do script
         BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-        self.core_code_smell = database
+
         # Conectando ao banco de dados do https://github.com/clowee/The-Technical-Debt-Data_set/
         path_data_set = os.path.join(BASE_DIR, self.env("DATASET"))
         conn_data_set = sqlite3.connect(path_data_set)
         self.dataset = conn_data_set.cursor()
         
         # Conectando ao banco local
-        path_local_db = os.path.join(BASE_DIR, "RESEARCH_DB")
-        self.conn_local_db = sqlite3.connect(path_local_db + '_2_.sqlite')
+        path_local_db = os.path.join(BASE_DIR, self.env("RESEARCH_DB"))
+        self.conn_local_db = sqlite3.connect(path_local_db)
         self.local_db = self.conn_local_db.cursor()
 
         # Caso deseje pular a etapa de verificação de leitura e gravação dos projetos e autores 
         if (not fast):
-            self.init_local_table(database)
+            pass
+            # self.init_local_table()
 
-    
-    def env(self, var):
+    def env(sefl, var):
         env = '\\.env'
         if(platform.system() in ['Linux', 'Darwin']):
             env = '/.env'
@@ -42,7 +44,7 @@ class Research:
         self.local_db.close()
 
     # Cria a tabela que é armazendo os dados caso não exista
-    def init_local_table(self, code_smell):
+    def init_local_table(self):
         self.local_db.execute("""
                 CREATE TABLE IF NOT EXISTS "author_information" (
                     "project_id"                      TEXT,
@@ -93,11 +95,12 @@ class Research:
                 );
             """)
         self.conn_local_db.commit()
-        # self.insert_authors_and_projects()
+        self.insert_authors_and_projects()
 
     # Insere todos os projetos e autores no banco de dados local
     def insert_authors_and_projects(self):
         self.dataset.execute("SELECT project_id, author FROM git_commits")
+
         for result in self.dataset.fetchall():
             project_id = result[0]
             author = result[1]
@@ -188,7 +191,7 @@ class Research:
 
     # Lê o Data Set e grava no banco local a quantidade de code smells para cada dev
     def read_amout_code_smells_author(self):
-        self.dataset.execute(f"""
+        self.dataset.execute("""
             SELECT
                 COUNT(DISTINCT si.issue_key) AS amount_code_smells,
                 gc.project_id,
@@ -201,7 +204,7 @@ class Research:
                 sonar_issues AS si ON sa.analysis_key = si.creation_analysis_key
             WHERE
                 gc.merge = 'False' 
-                AND si.rule LIKE '{self.core_code_smell}' 
+                AND si.rule LIKE 'code_smells:%' 
             GROUP BY gc.project_id, gc.author
         """)
 
@@ -235,7 +238,7 @@ class Research:
                 sonar_issues AS si ON sa.analysis_key = si.creation_analysis_key
             WHERE
                 gc.merge = 'False' 
-                AND si.rule LIKE 'code_smells:%'
+                AND si.rule LIKE 'code_smells:%' 
             GROUP BY gc.project_id
         """)
 
@@ -637,11 +640,10 @@ class Research:
             DELETE FROM 
                 author_percentage_information
             WHERE
-                code_smells is NULL OR (
                 lines_edited is NULL
                 AND commits is NULL
                 AND experience_in_days is NULL
-                AND experience_in_hours is NULL)
+                AND experience_in_hours is NULL
         """)
         self.conn_local_db.commit()
 
@@ -771,42 +773,406 @@ class Research:
                 """, (author_percentage, project_id, code_smell, author))
             
         self.conn_local_db.commit()
+
+###########################################################################################
+
+    def create_author_summary_table(self):
+        self.local_db.execute("""
+            CREATE TABLE IF NOT EXISTS "author_summary" (
+                "project_id" TEXT,
+                "author" TEXT,
+                "code_smells" INTEGER,
+                "lines_edited" INTEGER,
+                "commits" INTEGER,
+                "sonar_smells" INTEGER
+            );
+        """)
+        self.conn_local_db.commit()
+
+        # Insere os dados na tabela
+        self.local_db.execute("""
+            INSERT INTO author_summary (project_id, author, code_smells, lines_edited, commits, sonar_smells)
+            SELECT
+                project_id,
+                author,
+                SUM(amount_code_smells) AS code_smells,
+                SUM(number_lines_edited) AS lines_edited,
+                SUM(amount_commits) AS commits,
+                SUM(amount_sonar_smells) AS sonar_smells
+            FROM author_information
+            GROUP BY project_id, author
+        """)
+        self.conn_local_db.commit()
+
+    def delete_null_rows_from_author_summary(self):
+        columns = ["author", "code_smells", "lines_edited", "commits", "sonar_smells"]  # Substitua pelos nomes reais das colunas
+        query = f"DELETE FROM author_summary WHERE {' OR '.join([f'{col} IS NULL' for col in columns])};"
+        self.local_db.execute(query)
+        self.conn_local_db.commit()
+
+    def calculate_time_stats(self):
+        query = """
+        SELECT
+            project_id,
+            author,
+            first_commit,
+            last_commit
+        FROM
+            author_information
+        ORDER BY
+            project_id, author;
+        """
+        data = self.local_db.execute(query).fetchall()
+
+        # Calcula média de tempo entre commits, desvio padrão e CV
+        stats = {}
+        for row in data:
+            project_id = row[0]
+            author = row[1]
+            first_commit = row[2]
+            last_commit = row[3]
+            
+            # Convertendo timestamps para numpy datetime64
+            first_commit = np.datetime64(first_commit)
+            last_commit = np.datetime64(last_commit)
+            
+            if (last_commit > first_commit):
+                total_time = (last_commit - first_commit).astype('timedelta64[m]').astype(int)
+                avg_time = total_time / 2
+                std_dev = 0  # Assumindo que temos apenas dois commits, o desvio padrão é 0
+                cv = 0  # Coeficiente de variação é 0, já que não há variação entre dois pontos
+            else:
+                avg_time = 0
+                std_dev = 0
+                cv = 0
+            
+            stats[(project_id, author)] = (avg_time, std_dev, cv)
         
+        return stats
+
+    def create_normalized_author_summary_table(self):
+        # Cria a tabela normalizada
+        self.local_db.execute("""
+            CREATE TABLE IF NOT EXISTS "normalized_author_summary" (
+                "project_id" INTEGER,
+                "author" TEXT,
+                "code_smells" REAL,
+                "lines_edited" REAL,
+                "commits" REAL,
+                "sonar_smells" REAL,
+                "media_de_tempo_entre_commits" REAL,
+                "desvio_padrao" REAL,
+                "cv" REAL
+            );
+        """)
+        self.conn_local_db.commit()
+
+        # Consulta os dados da tabela author_information
+        query = """
+            SELECT
+                ai.project_id,
+                ai.author,
+                (ai.amount_code_smells * 100.0 / pi.amount_code_smells) AS code_smells_percentage,
+                (ai.number_lines_edited * 100.0 / pi.number_lines_edited) AS lines_edited_percentage,
+                (ai.amount_commits * 100.0 / pi.amount_commits) AS commits_percentage,
+                (ai.amount_sonar_smells * 100.0 / pi.amount_sonar_smells) AS sonar_smells_percentage
+            FROM
+                author_information ai
+            JOIN
+                project_information pi
+            ON
+                ai.project_id = pi.project_id;
+        """
+        data = self.local_db.execute(query).fetchall()
+
+        # Calcula as estatísticas de tempo
+        stats = self.calculate_time_stats()
+
+        results = []
+        for row in data:
+            project_id = row[0]
+            author = row[1]
+            code_smells = row[2]
+            lines_edited = row[3]
+            commits = row[4]
+            sonar_smells = row[5]
+            avg_time, std_dev, cv = stats.get((project_id, author), (0, 0, 0))
+            
+            results.append((
+                project_id,
+                author,
+                code_smells,
+                lines_edited,
+                commits,
+                sonar_smells,
+                avg_time,
+                std_dev,
+                cv
+            ))
+
+        # Insere os dados na tabela normalizada
+        self.local_db.executemany("""
+            INSERT INTO normalized_author_summary 
+            (project_id, author, code_smells, lines_edited, commits, sonar_smells, media_de_tempo_entre_commits, desvio_padrao, cv)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, results)
+        self.conn_local_db.commit()
+
+
+    def create_normalized_author_summary_table_commits_2(self):
+        # Cria a tabela normalizada
+        self.local_db.execute("""
+            CREATE TABLE IF NOT EXISTS "normalized_author_summary_2" (
+                "project_id" INTEGER,
+                "author" TEXT,
+                "code_smells" REAL,
+                "lines_edited" REAL,
+                "commits" REAL,
+                "sonar_smells" REAL,
+                "media_de_tempo_entre_commits" REAL,
+                "desvio_padrao" REAL,
+                "cv" REAL
+            );
+        """)
+        self.conn_local_db.commit()
+
+        # Consulta os dados da tabela author_information
+        query = """
+            SELECT
+                ai.project_id,
+                ai.author,
+                (ai.amount_code_smells * 100.0 / pi.amount_code_smells) AS code_smells_percentage,
+                (ai.number_lines_edited * 100.0 / pi.number_lines_edited) AS lines_edited_percentage,
+                (ai.amount_commits * 100.0 / pi.amount_commits) AS commits_percentage,
+                (ai.amount_sonar_smells * 100.0 / pi.amount_sonar_smells) AS sonar_smells_percentage
+            FROM
+                author_information ai
+            JOIN
+                project_information pi
+            ON
+                ai.project_id = pi.project_id
+            WHERE
+                ai.amount_commits > 2;
+        """
+        data = self.local_db.execute(query).fetchall()
+
+        # Calcula as estatísticas de tempo
+        stats = self.calculate_time_stats()
+
+        results = []
+        for row in data:
+            project_id = row[0]
+            author = row[1]
+            code_smells = row[2]
+            lines_edited = row[3]
+            commits = row[4]
+            sonar_smells = row[5]
+            avg_time, std_dev, cv = stats.get((project_id, author), (0, 0, 0))
+            
+            results.append((
+                project_id,
+                author,
+                code_smells,
+                lines_edited,
+                commits,
+                sonar_smells,
+                avg_time,
+                std_dev,
+                cv
+            ))
+
+        # Insere os dados na tabela normalizada
+        self.local_db.executemany("""
+            INSERT INTO normalized_author_summary_2 
+            (project_id, author, code_smells, lines_edited, commits, sonar_smells, media_de_tempo_entre_commits, desvio_padrao, cv)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, results)
+        self.conn_local_db.commit()
+
+    def create_normalized_author_summary_table_commits_4(self):
+        # Cria a tabela normalizada
+        self.local_db.execute("""
+            CREATE TABLE IF NOT EXISTS "normalized_author_summary_4" (
+                "project_id" INTEGER,
+                "author" TEXT,
+                "code_smells" REAL,
+                "lines_edited" REAL,
+                "commits" REAL,
+                "sonar_smells" REAL,
+                "media_de_tempo_entre_commits" REAL,
+                "desvio_padrao" REAL,
+                "cv" REAL
+            );
+        """)
+        self.conn_local_db.commit()
+
+        # Consulta os dados da tabela author_information
+        query = """
+            SELECT
+                ai.project_id,
+                ai.author,
+                (ai.amount_code_smells * 100.0 / pi.amount_code_smells) AS code_smells_percentage,
+                (ai.number_lines_edited * 100.0 / pi.number_lines_edited) AS lines_edited_percentage,
+                (ai.amount_commits * 100.0 / pi.amount_commits) AS commits_percentage,
+                (ai.amount_sonar_smells * 100.0 / pi.amount_sonar_smells) AS sonar_smells_percentage
+            FROM
+                author_information ai
+            JOIN
+                project_information pi
+            ON
+                ai.project_id = pi.project_id
+            WHERE
+                ai.amount_commits >= 4;
+        """
+        data = self.local_db.execute(query).fetchall()
+
+        # Calcula as estatísticas de tempo
+        stats = self.calculate_time_stats()
+
+        results = []
+        for row in data:
+            project_id = row[0]
+            author = row[1]
+            code_smells = row[2]
+            lines_edited = row[3]
+            commits = row[4]
+            sonar_smells = row[5]
+            avg_time, std_dev, cv = stats.get((project_id, author), (0, 0, 0))
+            
+            results.append((
+                project_id,
+                author,
+                code_smells,
+                lines_edited,
+                commits,
+                sonar_smells,
+                avg_time,
+                std_dev,
+                cv
+            ))
+
+        # Insere os dados na tabela normalizada
+        self.local_db.executemany("""
+            INSERT INTO normalized_author_summary_4 
+            (project_id, author, code_smells, lines_edited, commits, sonar_smells, media_de_tempo_entre_commits, desvio_padrao, cv)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, results)
+        self.conn_local_db.commit()
+
+    def create_normalized_author_summary_table_commits_5(self):
+        # Cria a tabela normalizada
+        self.local_db.execute("""
+            CREATE TABLE IF NOT EXISTS "normalized_author_summary_5" (
+                "project_id" INTEGER,
+                "author" TEXT,
+                "code_smells" REAL,
+                "lines_edited" REAL,
+                "commits" REAL,
+                "sonar_smells" REAL,
+                "media_de_tempo_entre_commits" REAL,
+                "desvio_padrao" REAL,
+                "cv" REAL
+            );
+        """)
+        self.conn_local_db.commit()
+
+        # Consulta os dados da tabela author_information
+        query = """
+            SELECT
+                ai.project_id,
+                ai.author,
+                (ai.amount_code_smells * 100.0 / pi.amount_code_smells) AS code_smells_percentage,
+                (ai.number_lines_edited * 100.0 / pi.number_lines_edited) AS lines_edited_percentage,
+                (ai.amount_commits * 100.0 / pi.amount_commits) AS commits_percentage,
+                (ai.amount_sonar_smells * 100.0 / pi.amount_sonar_smells) AS sonar_smells_percentage
+            FROM
+                author_information ai
+            JOIN
+                project_information pi
+            ON
+                ai.project_id = pi.project_id
+            WHERE
+                ai.amount_commits >= 4;
+        """
+        data = self.local_db.execute(query).fetchall()
+
+        # Calcula as estatísticas de tempo
+        stats = self.calculate_time_stats()
+
+        results = []
+        for row in data:
+            project_id = row[0]
+            author = row[1]
+            code_smells = row[2]
+            lines_edited = row[3]
+            commits = row[4]
+            sonar_smells = row[5]
+            avg_time, std_dev, cv = stats.get((project_id, author), (0, 0, 0))
+            
+            results.append((
+                project_id,
+                author,
+                code_smells,
+                lines_edited,
+                commits,
+                sonar_smells,
+                avg_time,
+                std_dev,
+                cv
+            ))
+
+        # Insere os dados na tabela normalizada
+        self.local_db.executemany("""
+            INSERT INTO normalized_author_summary_5
+            (project_id, author, code_smells, lines_edited, commits, sonar_smells, media_de_tempo_entre_commits, desvio_padrao, cv)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, results)
+        self.conn_local_db.commit()
+
+    def remove_null_rows_from_table(self, table_name): 
+        # Remove todas as linhas da tabela onde qualquer campo é NULL
+        query = f"""
+        DELETE FROM {table_name}
+        WHERE rowid NOT IN (
+            SELECT rowid FROM {table_name} WHERE 
+            project_id IS NOT NULL AND
+            author IS NOT NULL AND
+            code_smells IS NOT NULL AND
+            lines_edited IS NOT NULL AND
+            commits IS NOT NULL AND
+            sonar_smells IS NOT NULL AND
+            media_de_tempo_entre_commits IS NOT NULL
+        );
+        """
+        self.local_db.execute(query)
+        self.conn_local_db.commit()
+
+
+
 # Main do script
 if __name__ == "__main__":
+    research = Research(fast=True)
     
-    code_smells = ['code_smells:antisingleton', 'code_smells:baseclass_abstract', 'code_smells:class_data_private', 'code_smells:complex_class', 'code_smells:lazy_class', 'code_smells:long_method', 'code_smells:long_parameter_list', 'code_smells:refused_parent_bequest', 'code_smells:many_field_attributes_not_complex', 'code_smells:spaghetti_code', 'code_smells:speculative_generality', 'code_smells:swiss_army_knife', 'code_smells:large_class']
+    # research.percentage_lines_edited()
+    # research.percentage_commits()
+    # research.percentage_experience()
+    # research.percentage_smells()
+    # research.delete_null_authors_percentage()
+    # research.init_code_smells_table()
+
+    # Tabela de dados brutos
+    research.create_author_summary_table()
+    research.delete_null_rows_from_author_summary()
     
-    for smell in code_smells:
-        
-        research = Research(smell, fast=True)
+    # Tabela atributos normalizados & CV
+    research.create_normalized_author_summary_table()
+    research.create_normalized_author_summary_table_commits_2()
+    research.create_normalized_author_summary_table_commits_4()
+    research.create_normalized_author_summary_table_commits_5()
 
-        research.init_local_table(smell)
-        research.init_code_smells_table()
-        research.init_project_code_smells_table()
-        
-        # research.read_type_code_smell()
-        # research.read_type_project_code_smell()
-        # research.percentage_type_smell()
+    research.remove_null_rows_from_table("normalized_author_summary")
+    research.remove_null_rows_from_table("normalized_author_summary_2")
+    research.remove_null_rows_from_table("normalized_author_summary_4")
+    research.remove_null_rows_from_table("normalized_author_summary_5")
     
-    # research.read_amout_sonar_smells_author()
-    # research.read_amout_sonar_smells_project()
-
-    #Dados por projeto que foram removidos por Gabriel
-        # research.read_amout_code_smells_project()
-        # research.read_number_lines_edited_project()
-        # research.calculate_author_infos()
-
-        research.percentage_lines_edited()
-        research.percentage_commits()
-        research.percentage_experience()
-        research.percentage_smells()
     
-        research.delete_null_authors_percentage()
-
-        # Dados brutos do projeto
-        # research.read_amout_code_smells_author() #Quantidade de smells
-        # research.read_number_lines_edited_author() #Quantidade de linhas editadas
-        # research.calculate_project_infos() #Daqui deve sair quantidade de commits por projeto
-        # research.read_amout_sonar_smells_author() #Quantidade de sonar
-        # research.delete_null_authors()

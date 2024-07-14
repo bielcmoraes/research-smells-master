@@ -16,7 +16,7 @@ class Research:
         
         # Conectando ao banco local
         path_local_db = os.path.join(BASE_DIR, self.env("RESEARCH_DB"))
-        self.conn_local_db = sqlite3.connect('path_local_db')
+        self.conn_local_db = sqlite3.connect(path_local_db)
         self.local_db = self.conn_local_db.cursor()
 
         # Caso deseje pular a etapa de verificação de leitura e gravação dos projetos e autores 
@@ -801,17 +801,17 @@ if __name__ == "__main__":
     # research.read_number_lines_edited_author()
     # research.read_number_lines_edited_project()
     
-    # research.delete_null_authors()
+    research.delete_null_authors()
     
-    # research.percentage_lines_edited()
-    # research.percentage_commits()
-    # research.percentage_experience()
-    # research.percentage_smells()
+    research.percentage_lines_edited()
+    research.percentage_commits()
+    research.percentage_experience()
+    research.percentage_smells()
     
-    # research.delete_null_authors_percentage()
-    # research.init_code_smells_table()
-    # research.read_type_code_smell()
+    research.delete_null_authors_percentage()
+    research.init_code_smells_table()
+    # research.read_type_code_smell() # Error
     # research.init_project_code_smells_table()
     # research.read_type_project_code_smell()
-    research.percentage_type_smell()
+    # research.percentage_type_smell()
     
