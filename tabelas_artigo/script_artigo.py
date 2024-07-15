@@ -406,93 +406,7 @@ class Research:
                 AND amount_sonar_smells is NULL 
         """)
         self.conn_local_db.commit()
-
-    def init_code_smells_table(self):
-        self.local_db.execute("""
-            CREATE TABLE IF NOT EXISTS "author_code_smells_final" (
-                "project_id"    TEXT,
-                "author"	    TEXT,
-                "code_smell"    TEXT,
-                "amount"        INTEGER,
-                "percentage"    REAL
-            );
-    """)
-
-    def init_project_code_smells_table(self):
-        self.local_db.execute("""
-            CREATE TABLE IF NOT EXISTS "project_code_smells_final" (
-                "project_id"    TEXT,
-                "code_smell"    TEXT,
-                "amount"        INTEGER,
-                "percentage"    REAL
-            );
-    """)
     
-    def read_type_code_smell(self):
-        self.dataset.execute("""
-            SELECT DISTINCT
-                gc.project_id,
-                gc.author,
-                si.rule as code_smell,
-                COUNT(si.rule) as amount
-            FROM 
-                git_commits AS gc
-            INNER JOIN 
-                sonar_analysis AS sa ON gc.commit_hash = sa.revision
-            INNER JOIN 
-                sonar_issues AS si ON sa.analysis_key = si.creation_analysis_key
-            WHERE
-                gc.merge = 'False' 
-                AND si.rule LIKE 'code_smells:%' 
-            GROUP BY gc.project_id, gc.author, si.rule
-        """)
-
-        for result in self.dataset.fetchall():
-            print("Insert into code_smell: ", result)
-            self.local_db.execute(
-                """
-                    INSERT INTO
-                        author_code_smells_final (project_id, author, code_smell, amount)
-                    VALUES 
-                        (?, ?, ?, ?)
-                """,
-                (result)
-            )
-        self.conn_local_db.commit()
-        
-    def read_type_project_code_smell(self):
-        self.dataset.execute("""
-            SELECT DISTINCT
-                gc.project_id,
-                si.rule as code_smell,
-                COUNT(si.rule) as amount
-            FROM 
-                git_commits AS gc
-            INNER JOIN 
-                sonar_analysis AS sa ON gc.commit_hash = sa.revision
-            INNER JOIN 
-                sonar_issues AS si ON sa.analysis_key = si.creation_analysis_key
-            WHERE
-                gc.merge = 'False' 
-                AND si.rule LIKE 'code_smells:%' 
-            GROUP BY gc.project_id, si.rule
-        """)
-
-        for result in self.dataset.fetchall():
-            print("Insert into project_code_smell: ", result)
-            self.local_db.execute(
-                """
-                    INSERT INTO
-                        project_code_smells_final (project_id, code_smell, amount)
-                    VALUES 
-                        (?, ?, ?)
-                """,
-                (result)
-            )
-        self.conn_local_db.commit()
-        
-###########################################################################################
-
     def create_raw_data_table(self):
         self.local_db.execute("""
             CREATE TABLE IF NOT EXISTS "raw_data" (
@@ -628,12 +542,12 @@ class Research:
 
 # Main do script
 if __name__ == "__main__":
-    research = Research(fast=True)
+    research = Research(fast=False)
     
     # Incialização do data_set
-    research.init_local_table()
     research.calculate_author_infos()
     research.calculate_project_infos()
+    research.delete_null_authors()
     research.read_amout_sonar_smells_author()
     research.read_amout_sonar_smells_project()
     research.read_amout_code_smells_author()
