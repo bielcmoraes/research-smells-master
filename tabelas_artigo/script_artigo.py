@@ -10,8 +10,8 @@ class Research:
         BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
         # Conectando ao banco de dados do https://github.com/clowee/The-Technical-Debt-Data_set/
-        # path_data_set = os.path.join(BASE_DIR, "dataset.db")
-        conn_data_set = sqlite3.connect("C:/Users/gcmor/Desktop/td_V2.db")
+        path_data_set = os.path.join(BASE_DIR, "dataset.db")
+        conn_data_set = sqlite3.connect(path_data_set)
         self.dataset = conn_data_set.cursor()
         
         # Conectando ao banco local
@@ -545,6 +545,7 @@ if __name__ == "__main__":
     research = Research(fast=False)
     
     # Incialização do data_set
+    research.init_local_table()
     research.calculate_author_infos()
     research.calculate_project_infos()
     research.delete_null_authors()
@@ -555,13 +556,13 @@ if __name__ == "__main__":
     research.read_number_lines_edited_author()
     research.read_number_lines_edited_project()
 
-    # Tabela de dados brutos
-    research.create_raw_data_table()
+    # # Tabela de dados brutos
+    # research.create_raw_data_table()
     
-    # Tabela atributos normalizados
-    # Cria tabelas para diferentes valores de commits
-    research.create_normalized_table(0)
-    research.create_normalized_table(2)
-    research.create_normalized_table(4)
-    research.create_normalized_table(5)
-    research.create_normalized_separated_by_author_avg()
+    # # Tabela atributos normalizados
+    # # Cria tabelas para diferentes valores de commits
+    # research.create_normalized_table(0)
+    # research.create_normalized_table(2)
+    # research.create_normalized_table(4)
+    # research.create_normalized_table(5)
+    # research.create_normalized_separated_by_author_avg()
